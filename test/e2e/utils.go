@@ -19,7 +19,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -142,7 +141,7 @@ var (
 	backupDeltaSnapshotMemoryLimit = resource.MustParse("100Mi")
 	gzipCompression                = v1alpha1.GzipCompression
 	backupCompression              = v1alpha1.CompressionSpec{
-		Enabled: pointer.BoolPtr(true),
+		Enabled: pointer.Bool(true),
 		Policy:  &gzipCompression,
 	}
 	defaultBackupStore = v1alpha1.StoreSpec{
@@ -436,11 +435,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 	)
 
 	for _, provider := range providers {
-		caCert, err := ioutil.ReadFile(path.Join(certsPath, caCertFile))
+		caCert, err := os.ReadFile(path.Join(certsPath, caCertFile))
 		if err != nil {
 			return err
 		}
-		caKey, err := ioutil.ReadFile(path.Join(certsPath, caKeyFile))
+		caKey, err := os.ReadFile(path.Join(certsPath, caKeyFile))
 		if err != nil {
 			return err
 		}
@@ -453,11 +452,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsServerCert, err := ioutil.ReadFile(path.Join(certsPath, tlsServerCertFile))
+		tlsServerCert, err := os.ReadFile(path.Join(certsPath, tlsServerCertFile))
 		if err != nil {
 			return err
 		}
-		tlsServerKey, err := ioutil.ReadFile(path.Join(certsPath, tlsServerKeyFile))
+		tlsServerKey, err := os.ReadFile(path.Join(certsPath, tlsServerKeyFile))
 		if err != nil {
 			return err
 		}
@@ -471,11 +470,11 @@ func buildAndDeployTLSSecrets(ctx context.Context, cl client.Client, logger logr
 			return err
 		}
 
-		tlsClientCert, err := ioutil.ReadFile(path.Join(certsPath, tlsClientCertFile))
+		tlsClientCert, err := os.ReadFile(path.Join(certsPath, tlsClientCertFile))
 		if err != nil {
 			return err
 		}
-		tlsClientKey, err := ioutil.ReadFile(path.Join(certsPath, tlsClientKeyFile))
+		tlsClientKey, err := os.ReadFile(path.Join(certsPath, tlsClientKeyFile))
 		if err != nil {
 			return err
 		}
@@ -556,7 +555,7 @@ func getRemoteCommandExecutor(kubeconfigPath, namespace, podName, containerName,
 
 // executeRemoteCommand executes a remote shell command on the given pod and container
 // and returns the stdout and stderr logs
-func executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, command string) (string, string, error) {
+func executeRemoteCommand(ctx context.Context, kubeconfigPath, namespace, podName, containerName, command string) (string, string, error) {
 	exec, err := getRemoteCommandExecutor(kubeconfigPath, namespace, podName, containerName, command)
 	if err != nil {
 		return "", "", err
@@ -564,7 +563,7 @@ func executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, com
 
 	buf := &bytes.Buffer{}
 	errBuf := &bytes.Buffer{}
-	err = exec.Stream(remotecommand.StreamOptions{
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: buf,
 		Stderr: errBuf,
 	})
@@ -605,7 +604,7 @@ func purgeSnapstore(store brtypes.SnapStore) error {
 	return nil
 }
 
-func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, start, end int, delay time.Duration) error {
+func populateEtcdWithCount(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, valuePrefix string, start, end int, delay time.Duration) error {
 	var (
 		cmd     string
 		stdout  string
@@ -616,7 +615,7 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 
 	for i := start; i <= end; {
 		cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key put %s-%d %s-%d", etcdName, etcdClientPort, keyPrefix, i, valuePrefix, i)
-		stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+		stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 		if err != nil || stderr != "" || stdout != "OK" {
 			logger.Error(err, fmt.Sprintf("failed to put (%s-%d, %s-%d): stdout: %s; stderr: %s. Retrying", keyPrefix, i, valuePrefix, i, stdout, stderr))
 			retries++
@@ -633,7 +632,7 @@ func populateEtcdWithCount(logger logr.Logger, kubeconfigPath, namespace, etcdNa
 	return nil
 }
 
-func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, suffix int) (string, string, error) {
+func getEtcdKey(ctx context.Context, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, suffix int) (string, string, error) {
 	var (
 		cmd    string
 		stdout string
@@ -642,7 +641,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 	)
 
 	cmd = fmt.Sprintf("ETCDCTL_API=3 etcdctl --endpoints=https://%s-local:%d --cacert /var/etcd/ssl/client/ca/ca.crt --cert=/var/etcd/ssl/client/client/tls.crt --key=/var/etcd/ssl/client/client/tls.key get %s-%d", etcdName, etcdClientPort, keyPrefix, suffix)
-	stdout, stderr, err = executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err = executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stderr != "" {
 		return "", "", fmt.Errorf("failed to get %s-%d: stdout: %s; stderr: %s; err: %v", keyPrefix, suffix, stdout, stderr, err)
 	}
@@ -654,7 +653,7 @@ func getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, key
 	return strings.TrimSpace(splits[0]), strings.TrimSpace(splits[1]), nil
 }
 
-func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end int) (map[string]string, error) {
+func getEtcdKeys(ctx context.Context, logger logr.Logger, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix string, start, end int) (map[string]string, error) {
 	var (
 		key         string
 		val         string
@@ -663,7 +662,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 		err         error
 	)
 	for i := start; i <= end; {
-		key, val, err = getEtcdKey(kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
+		key, val, err = getEtcdKey(ctx, kubeconfigPath, namespace, etcdName, podName, containerName, keyPrefix, i)
 		if err != nil {
 			logger.Info(fmt.Sprintf("failed to get key %s-%d. Retrying", keyPrefix, i))
 			retries++
@@ -681,7 +680,7 @@ func getEtcdKeys(logger logr.Logger, kubeconfigPath, namespace, etcdName, podNam
 	return keyValueMap, nil
 }
 
-func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
+func triggerOnDemandSnapshot(ctx context.Context, kubeconfigPath, namespace, podName, containerName string, port int, snapshotKind string) (*brtypes.Snapshot, error) {
 	var (
 		snapshot *brtypes.Snapshot
 		snapKind string
@@ -696,7 +695,7 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName s
 		return nil, fmt.Errorf("invalid snapshotKind %s", snapshotKind)
 	}
 	cmd := fmt.Sprintf("curl https://localhost:%d/snapshot/%s -k -s", port, snapKind)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to trigger on-demand %s snapshot for %s: stdout: %s; stderr: %s; err: %v", snapKind, podName, stdout, stderr, err)
 	}
@@ -707,10 +706,10 @@ func triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, containerName s
 	return snapshot, nil
 }
 
-func getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, containerName string, port int) (*LatestSnapshots, error) {
+func getLatestSnapshots(ctx context.Context, kubeconfigPath, namespace, etcdName, podName, containerName string, port int) (*LatestSnapshots, error) {
 	var latestSnapshots *LatestSnapshots
 	cmd := fmt.Sprintf("curl https://%s-local:%d/snapshot/latest -k -s", etcdName, port)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout == "" {
 		return nil, fmt.Errorf("failed to fetch latest snapshots taken for %s: stdout: %s; stderr: %s; err: %v", podName, stdout, stderr, err)
 	}
@@ -726,18 +725,18 @@ func getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, containerN
 	return latestSnapshots, nil
 }
 
-func deleteDir(kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
+func deleteDir(ctx context.Context, kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
 	cmd := fmt.Sprintf("rm -rf %s", dirPath)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout != "" {
 		return fmt.Errorf("failed to delete directory %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
 	return nil
 }
 
-func corruptDBFile(kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
+func corruptDBFile(ctx context.Context, kubeconfigPath, namespace, podName, containerName string, dirPath string) error {
 	cmd := fmt.Sprintf("echo destrory > %s", dirPath)
-	stdout, stderr, err := executeRemoteCommand(kubeconfigPath, namespace, podName, containerName, cmd)
+	stdout, stderr, err := executeRemoteCommand(ctx, kubeconfigPath, namespace, podName, containerName, cmd)
 	if err != nil || stdout != "" {
 		return fmt.Errorf("failed to corrupt db %s for %s: stdout: %s; stderr: %s; err: %v", dirPath, podName, stdout, stderr, err)
 	}
@@ -768,7 +767,7 @@ func newTestHelperJob(jobName string, podSpec *corev1.PodSpec) *batchv1.Job {
 }
 
 // etcdZeroDownTimeValidatorJob returns k8s job which ensures
-// Etcd cluster(size>1) zero down time by continuously checking etcd cluster health.
+// Etcd cluster(size>1) zero downtime by continuously checking etcd cluster health.
 // This job fails once health check fails and associated pod results in error status.
 func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSConfig) *batchv1.Job {
 	return newTestHelperJob(
@@ -824,7 +823,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
 						SuccessThreshold:    int32(3),
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{
 									"cat",
@@ -837,7 +836,7 @@ func etcdZeroDownTimeValidatorJob(etcdSvc, testName string, tls *v1alpha1.TLSCon
 						InitialDelaySeconds: int32(5),
 						FailureThreshold:    int32(1),
 						PeriodSeconds:       int32(1),
-						Handler: v1.Handler{
+						ProbeHandler: v1.ProbeHandler{
 							Exec: &v1.ExecAction{
 								Command: []string{
 									"cat",

@@ -26,8 +26,7 @@ import (
 	"github.com/gardener/gardener/pkg/controllerutils"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	gomegatypes "github.com/onsi/gomega/types"
@@ -100,7 +99,7 @@ var _ = Describe("EtcdCopyBackupsTask Controller", func() {
 				}
 				return job, nil
 			}, timeout, pollingInterval).Should(PointTo(matchFinalizer(metav1.FinalizerDeleteDependents)))
-			Expect(controllerutils.PatchRemoveFinalizers(ctx, c, job, metav1.FinalizerDeleteDependents)).To(Succeed())
+			Expect(controllerutils.RemoveFinalizers(ctx, c, job, metav1.FinalizerDeleteDependents)).To(Succeed())
 
 			// Wait until the job has been deleted
 			Eventually(func() error {
@@ -149,7 +148,7 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptional
 		},
 		Spec: druidv1alpha1.EtcdCopyBackupsTaskSpec{
 			SourceStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("source-container"),
+				Container: pointer.String("source-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -157,7 +156,7 @@ func getEtcdCopyBackupsTask(provider druidv1alpha1.StorageProvider, withOptional
 				},
 			},
 			TargetStore: druidv1alpha1.StoreSpec{
-				Container: pointer.StringPtr("target-container"),
+				Container: pointer.String("target-container"),
 				Prefix:    "/tmp",
 				Provider:  &provider,
 				SecretRef: &corev1.SecretReference{
@@ -449,7 +448,7 @@ func matchTaskStatus(jobStatus *batchv1.JobStatus) gomegatypes.GomegaMatcher {
 	return MatchFields(IgnoreExtras, Fields{
 		"Status": MatchFields(IgnoreExtras, Fields{
 			"Conditions":         MatchAllElements(conditionIdentifier, conditionElements),
-			"ObservedGeneration": Equal(pointer.Int64Ptr(1)),
+			"ObservedGeneration": Equal(pointer.Int64(1)),
 		}),
 	})
 }

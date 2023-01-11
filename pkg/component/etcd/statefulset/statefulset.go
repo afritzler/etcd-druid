@@ -333,7 +333,7 @@ func (c *component) createOrPatch(ctx context.Context, sts *appsv1.StatefulSet, 
 						ImagePullPolicy: corev1.PullIfNotPresent,
 						Command:         c.values.EtcdCommand,
 						ReadinessProbe: &corev1.Probe{
-							Handler:             getReadinessHandler(c.values),
+							ProbeHandler:        getReadinessHandler(c.values),
 							InitialDelaySeconds: 15,
 							PeriodSeconds:       5,
 							FailureThreshold:    5,
@@ -448,8 +448,8 @@ func getObjectMeta(val *Values, sts *appsv1.StatefulSet) metav1.ObjectMeta {
 			Kind:               "Etcd",
 			Name:               val.Name,
 			UID:                val.EtcdUID,
-			Controller:         pointer.BoolPtr(true),
-			BlockOwnerDeletion: pointer.BoolPtr(true),
+			Controller:         pointer.Bool(true),
+			BlockOwnerDeletion: pointer.Bool(true),
 		},
 	}
 
@@ -596,7 +596,7 @@ func getBackupRestoreVolumeMounts(val Values) []corev1.VolumeMount {
 		if val.BackupStore.Container != nil {
 			vms = append(vms, corev1.VolumeMount{
 				Name:      "host-storage",
-				MountPath: pointer.StringPtrDerefOr(val.BackupStore.Container, ""),
+				MountPath: pointer.StringDeref(val.BackupStore.Container, ""),
 			})
 		}
 	case utils.GCS:
@@ -733,7 +733,7 @@ func getVolumes(ctx context.Context, cl client.Client, logger logr.Logger, val V
 			Name: "host-storage",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
-					Path: hostPath + "/" + pointer.StringPtrDerefOr(storeValues.Container, ""),
+					Path: hostPath + "/" + pointer.StringDeref(storeValues.Container, ""),
 					Type: &hpt,
 				},
 			},
@@ -843,7 +843,7 @@ func getEnvVarFromSecrets(name, secretName, secretKey string) corev1.EnvVar {
 	}
 }
 
-func getReadinessHandler(val Values) corev1.Handler {
+func getReadinessHandler(val Values) corev1.ProbeHandler {
 	if val.Replicas > 1 {
 		// TODO(timuthy): Special handling for multi-node etcd can be removed as soon as
 		// etcd-backup-restore supports `/healthz` for etcd followers, see https://github.com/gardener/etcd-backup-restore/pull/491.
@@ -852,13 +852,13 @@ func getReadinessHandler(val Values) corev1.Handler {
 	return getReadinessHandlerForSingleNode(val)
 }
 
-func getReadinessHandlerForSingleNode(val Values) corev1.Handler {
+func getReadinessHandlerForSingleNode(val Values) corev1.ProbeHandler {
 	scheme := corev1.URISchemeHTTPS
 	if val.BackupTLS == nil {
 		scheme = corev1.URISchemeHTTP
 	}
 
-	return corev1.Handler{
+	return corev1.ProbeHandler{
 		HTTPGet: &corev1.HTTPGetAction{
 			Path:   "/healthz",
 			Port:   intstr.FromInt(int(pointer.Int32Deref(val.BackupPort, defaultBackupPort))),
@@ -867,8 +867,8 @@ func getReadinessHandlerForSingleNode(val Values) corev1.Handler {
 	}
 }
 
-func getReadinessHandlerForMultiNode(val Values) corev1.Handler {
-	return corev1.Handler{
+func getReadinessHandlerForMultiNode(val Values) corev1.ProbeHandler {
+	return corev1.ProbeHandler{
 		Exec: &corev1.ExecAction{
 			Command: val.ReadinessProbeCommand,
 		},

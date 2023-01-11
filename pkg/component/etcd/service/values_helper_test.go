@@ -20,7 +20,7 @@ import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/service"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -67,9 +67,9 @@ var _ = Describe("#GenerateValues", func() {
 
 	Context("when ports are specified", func() {
 		BeforeEach(func() {
-			backupPort = pointer.Int32Ptr(1111)
-			clientPort = pointer.Int32Ptr(2222)
-			serverPort = pointer.Int32Ptr(3333)
+			backupPort = pointer.Int32(1111)
+			clientPort = pointer.Int32(2222)
+			serverPort = pointer.Int32(3333)
 		})
 
 		It("should generate values correctly", func() {

@@ -17,7 +17,7 @@ package controllers
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	componentpdb "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/utils/pointer"
 )
@@ -74,7 +74,7 @@ func getEtcdStatus(replicas int) druidv1alpha1.EtcdStatus {
 	}
 
 	return druidv1alpha1.EtcdStatus{
-		ClusterSize: pointer.Int32Ptr(int32(replicas)),
+		ClusterSize: pointer.Int32(int32(replicas)),
 		Members:     members,
 		Conditions: []druidv1alpha1.Condition{
 			{Type: druidv1alpha1.ConditionTypeAllMembersReady, Status: druidv1alpha1.ConditionTrue},

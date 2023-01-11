@@ -28,7 +28,7 @@ import (
 	"github.com/gardener/gardener/pkg/utils"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	corev1 "k8s.io/api/core/v1"
@@ -247,8 +247,8 @@ func checkConfigmapMetadata(meta *metav1.ObjectMeta, values *Values) {
 		Kind:               "Etcd",
 		Name:               values.EtcdName,
 		UID:                values.EtcdUID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	})))
 	Expect(meta.Labels).To(Equal(configmapLabels(values)))
 }

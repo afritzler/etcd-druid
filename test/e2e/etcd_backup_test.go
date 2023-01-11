@@ -24,7 +24,7 @@ import (
 	brtypes "github.com/gardener/etcd-backup-restore/pkg/types"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -88,7 +88,7 @@ var _ = Describe("Etcd Backup", func() {
 					By("Check initial snapshot is available")
 					var podName = fmt.Sprintf("%s-0", etcdName)
 
-					latestSnapshotsBeforePopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, "backup-restore", 8080)
+					latestSnapshotsBeforePopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, podName, "backup-restore", 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 					// We don't expect any delta snapshot as the cluster
 					Expect(latestSnapshotsBeforePopulate.DeltaSnapshots).To(HaveLen(0))
@@ -99,14 +99,14 @@ var _ = Describe("Etcd Backup", func() {
 					By("Put keys into etcd")
 					logger.Info(fmt.Sprintf("populating etcd with %s-1 to %s-10", etcdKeyPrefix, etcdKeyPrefix))
 					// populate 10 keys in etcd, finishing in 10 seconds
-					err = populateEtcdWithCount(logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
+					err = populateEtcdWithCount(ctx, logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 1, 10, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Check snapshot after putting data into etcd")
 					// allow 5 second buffer to upload full/delta snapshot
 					time.Sleep(time.Second * 5)
 
-					latestSnapshotsAfterPopulate, err := getLatestSnapshots(kubeconfigPath, namespace, etcdName, podName, "backup-restore", 8080)
+					latestSnapshotsAfterPopulate, err := getLatestSnapshots(ctx, kubeconfigPath, namespace, etcdName, podName, "backup-restore", 8080)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					latestSnapshotAfterPopulate := latestSnapshotsAfterPopulate.FullSnapshot
@@ -118,22 +118,22 @@ var _ = Describe("Etcd Backup", func() {
 					Expect(latestSnapshotAfterPopulate.CreatedOn.After(latestSnapshotBeforePopulate.CreatedOn)).To(BeTrue())
 
 					By("Trigger on-demand full snapshot")
-					fullSnapshot, err := triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, "backup-restore", 8080, brtypes.SnapshotKindFull)
+					fullSnapshot, err := triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, podName, "backup-restore", 8080, brtypes.SnapshotKindFull)
 					Expect(err).ShouldNot(HaveOccurred())
 					Expect(fullSnapshot.LastRevision).To(Equal(10 + latestSnapshotBeforePopulate.LastRevision))
 
 					By("Put additional data into etcd")
 					logger.Info(fmt.Sprintf("populating etcd with %s-11 to %s-15", etcdKeyPrefix, etcdKeyPrefix))
 					// populate 5 keys in etcd, finishing in 5 seconds
-					err = populateEtcdWithCount(logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
+					err = populateEtcdWithCount(ctx, logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, etcdValuePrefix, 11, 15, time.Second*1)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Trigger on-demand delta snapshot")
-					_, err = triggerOnDemandSnapshot(kubeconfigPath, namespace, podName, "backup-restore", 8080, brtypes.SnapshotKindDelta)
+					_, err = triggerOnDemandSnapshot(ctx, kubeconfigPath, namespace, podName, "backup-restore", 8080, brtypes.SnapshotKindDelta)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					By("Test cluster restoration by deleting data directory")
-					Expect(deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
+					Expect(deleteDir(ctx, kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
 
 					logger.Info("waiting for sts to become unready", "statefulSetName", etcdName)
 					Eventually(func() error {
@@ -169,7 +169,7 @@ var _ = Describe("Etcd Backup", func() {
 
 					// verify existence and correctness of keys 1 to 30
 					logger.Info("fetching etcd key-value pairs")
-					keyValueMap, err := getEtcdKeys(logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, 1, 15)
+					keyValueMap, err := getEtcdKeys(ctx, logger, kubeconfigPath, namespace, etcdName, podName, "etcd", etcdKeyPrefix, 1, 15)
 					Expect(err).ShouldNot(HaveOccurred())
 
 					for i := 1; i <= 15; i++ {

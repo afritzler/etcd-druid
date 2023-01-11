@@ -25,7 +25,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test"
 	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gstruct"
 	coordinationv1 "k8s.io/api/coordination/v1"
@@ -68,14 +68,14 @@ var _ = Describe("ReadyCheck", func() {
 			unknownThreshold = 300 * time.Second
 			notReadyThreshold = 60 * time.Second
 			now, _ = time.Parse(time.RFC3339, "2021-06-01T00:00:00Z")
-			check = ReadyCheck(cl, log.NullLogger{}, controllersconfig.EtcdCustodianController{
+			check = ReadyCheck(cl, log.FromContext(ctx), controllersconfig.EtcdCustodianController{
 				EtcdMember: controllersconfig.EtcdMemberConfig{
 					EtcdMemberNotReadyThreshold: notReadyThreshold,
 					EtcdMemberUnknownThreshold:  unknownThreshold,
 				},
 			})
 
-			member1ID = pointer.StringPtr("1")
+			member1ID = pointer.String("1")
 			member1Name = "member1"
 
 			etcd = druidv1alpha1.Etcd{
@@ -111,7 +111,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -173,7 +173,7 @@ var _ = Describe("ReadyCheck", func() {
 					return now
 				})()
 
-				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{})).DoAndReturn(
+				cl.EXPECT().Get(ctx, kutil.Key(etcd.Namespace, member1Name), gomock.AssignableToTypeOf(&corev1.Pod{}), nil).DoAndReturn(
 					func(_ context.Context, _ client.ObjectKey, pod *corev1.Pod) error {
 						*pod = corev1.Pod{
 							Status: corev1.PodStatus{
@@ -225,7 +225,7 @@ var _ = Describe("ReadyCheck", func() {
 
 			BeforeEach(func() {
 				member2Name = "member2"
-				member2ID = pointer.StringPtr("2")
+				member2ID = pointer.String("2")
 
 				var (
 					shortExpirationTime = metav1.NewMicroTime(now.Add(-1 * unknownThreshold).Add(-1 * time.Second))
@@ -240,7 +240,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &shortExpirationTime,
 							},
@@ -251,7 +251,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member2ID, druidv1alpha1.EtcdRoleMember)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member2ID, druidv1alpha1.EtcdRoleMember)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &longExpirationTime,
 							},
@@ -291,9 +291,9 @@ var _ = Describe("ReadyCheck", func() {
 
 			BeforeEach(func() {
 				member2Name = "member2"
-				member2ID = pointer.StringPtr("2")
+				member2ID = pointer.String("2")
 				member3Name = "member3"
-				member3ID = pointer.StringPtr("3")
+				member3ID = pointer.String("3")
 				renewTime := metav1.NewMicroTime(now.Add(-1 * unknownThreshold))
 				leasesList = &coordinationv1.LeaseList{
 					Items: []coordinationv1.Lease{
@@ -303,7 +303,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -325,7 +325,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member3ID, "foo")),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member3ID, "foo")),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -370,7 +370,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
+								HolderIdentity:       pointer.String(fmt.Sprintf("%s:%s", *member1ID, druidv1alpha1.EtcdRoleLeader)),
 								LeaseDurationSeconds: leaseDurationSeconds,
 								RenewTime:            &renewTime,
 							},
@@ -381,7 +381,7 @@ var _ = Describe("ReadyCheck", func() {
 								Namespace: etcd.Namespace,
 							},
 							Spec: coordinationv1.LeaseSpec{
-								HolderIdentity:       pointer.StringPtr("foo"),
+								HolderIdentity:       pointer.String("foo"),
 								LeaseDurationSeconds: leaseDurationSeconds,
 							},
 						},

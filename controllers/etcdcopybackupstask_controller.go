@@ -16,6 +16,7 @@ package controllers
 
 import (
 	"context"
+	"embed"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -46,6 +47,12 @@ import (
 )
 
 const workerSuffix = "-worker"
+
+var (
+	//go:embed charts/etcd-copy-backups
+	chartEtcdCopyBackups          embed.FS
+	chartPathchartEtcdCopyBackups = filepath.Join("charts", "etcd-copy-backups")
+)
 
 // EtcdCopyBackupsTaskReconciler reconciles EtcdCopyBackupsTask object.
 type EtcdCopyBackupsTaskReconciler struct {
@@ -132,7 +139,7 @@ func (r *EtcdCopyBackupsTaskReconciler) reconcile(ctx context.Context, task *dru
 	// Ensure finalizer
 	if !controllerutil.ContainsFinalizer(task, FinalizerName) {
 		logger.V(1).Info("Adding finalizer")
-		if err := controllerutils.PatchAddFinalizers(ctx, r.Client, task, FinalizerName); err != nil {
+		if err := controllerutils.AddFinalizers(ctx, r.Client, task, FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not add finalizer: %w", err)
 		}
 	}
@@ -186,7 +193,7 @@ func (r *EtcdCopyBackupsTaskReconciler) delete(ctx context.Context, task *druidv
 	// Remove finalizer if requested
 	if removeFinalizer {
 		logger.V(1).Info("Removing finalizer")
-		if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, task, FinalizerName); err != nil {
+		if err := controllerutils.RemoveFinalizers(ctx, r.Client, task, FinalizerName); err != nil {
 			return ctrl.Result{}, fmt.Errorf("could not remove finalizer: %w", err)
 		}
 	}
@@ -218,7 +225,7 @@ func (r *EtcdCopyBackupsTaskReconciler) doReconcile(ctx context.Context, task *d
 	}
 
 	// Render chart
-	renderedChart, err := r.chartApplier.Render(getEtcdCopyBackupsChartPath(), task.Name, task.Namespace, values)
+	renderedChart, err := r.chartApplier.RenderEmbeddedFS(chartEtcdCopyBackups, chartPathchartEtcdCopyBackups, task.Name, task.Namespace, values)
 	if err != nil {
 		return status, fmt.Errorf("could not render chart: %w", err)
 	}
@@ -339,7 +346,7 @@ func setStatusDetails(status *druidv1alpha1.EtcdCopyBackupsTaskStatus, generatio
 		status.Conditions = nil
 	}
 	if err != nil {
-		status.LastError = pointer.StringPtr(err.Error())
+		status.LastError = pointer.String(err.Error())
 	} else {
 		status.LastError = nil
 	}

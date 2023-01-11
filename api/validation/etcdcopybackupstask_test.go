@@ -20,8 +20,7 @@ import (
 	"github.com/gardener/etcd-druid/api/v1alpha1"
 	"github.com/gardener/etcd-druid/api/validation"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 	"github.com/onsi/gomega/types"
@@ -42,11 +41,11 @@ var _ = Describe("Etcd validation tests", func() {
 			Spec: v1alpha1.EtcdCopyBackupsTaskSpec{
 				SourceStore: v1alpha1.StoreSpec{
 					Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-					Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+					Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 				},
 				TargetStore: v1alpha1.StoreSpec{
 					Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-					Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+					Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 				},
 			},
 		}
@@ -74,10 +73,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should forbid invalid spec.sourceStore and spec.targetStore", &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
 			}, &v1alpha1.StoreSpec{
 				Prefix:   "invalid",
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr("invalid")),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String("invalid")),
 			}, ConsistOf(PointTo(MatchFields(IgnoreExtras, Fields{
 				"Type":  Equal(field.ErrorTypeInvalid),
 				"Field": Equal("spec.sourceStore.prefix"),
@@ -94,10 +93,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			Entry("should allow valid spec.sourceStore and spec.targetStore", &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 			}, &v1alpha1.StoreSpec{
 				Prefix:   fmt.Sprintf("%s--%s/%s", namespace, uuid, name),
-				Provider: (*v1alpha1.StorageProvider)(pointer.StringPtr(provider)),
+				Provider: (*v1alpha1.StorageProvider)(pointer.String(provider)),
 			}, BeNil()),
 		)
 	})
@@ -110,7 +109,7 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newTask := task.DeepCopy()
 			newTask.ResourceVersion = "2"
-			newTask.Spec.SourceStore.Container = pointer.StringPtr("foo")
+			newTask.Spec.SourceStore.Container = pointer.String("foo")
 
 			errList := validation.ValidateEtcdCopyBackupsTaskUpdate(newTask, task)
 
@@ -144,10 +143,10 @@ var _ = Describe("Etcd validation tests", func() {
 
 			newTask := task.DeepCopy()
 			newTask.ResourceVersion = "2"
-			newTask.Spec.SourceStore.Container = pointer.StringPtr("foo")
-			newTask.Spec.SourceStore.Provider = (*v1alpha1.StorageProvider)(pointer.StringPtr("gcp"))
-			newTask.Spec.TargetStore.Container = pointer.StringPtr("bar")
-			newTask.Spec.TargetStore.Provider = (*v1alpha1.StorageProvider)(pointer.StringPtr("gcp"))
+			newTask.Spec.SourceStore.Container = pointer.String("foo")
+			newTask.Spec.SourceStore.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
+			newTask.Spec.TargetStore.Container = pointer.String("bar")
+			newTask.Spec.TargetStore.Provider = (*v1alpha1.StorageProvider)(pointer.String("gcp"))
 
 			errList := validation.ValidateEtcdCopyBackupsTaskUpdate(newTask, task)
 

@@ -25,7 +25,7 @@ import (
 	controllersconfig "github.com/gardener/etcd-druid/controllers/config"
 
 	"github.com/gardener/gardener/pkg/utils/test"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -56,7 +56,19 @@ var (
 	testLog = ctrl.Log.WithName("test")
 )
 
+const (
+	eventuallyTimeout    = 3 * time.Second
+	consistentlyDuration = 1 * time.Second
+)
+
 func TestAPIs(t *testing.T) {
+	SetDefaultConsistentlyPollingInterval(pollingInterval)
+	SetDefaultEventuallyPollingInterval(pollingInterval)
+	SetDefaultEventuallyTimeout(eventuallyTimeout)
+	SetDefaultConsistentlyDuration(consistentlyDuration)
+
+	RegisterFailHandler(Fail)
+
 	RegisterFailHandler(Fail)
 
 	RunSpecs(
@@ -65,7 +77,7 @@ func TestAPIs(t *testing.T) {
 	)
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	mgrCtx, mgrCancel = context.WithCancel(context.Background())
 	var err error
 	//logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
@@ -109,7 +121,7 @@ var _ = BeforeSuite(func(done Done) {
 
 	secret := NewSecret(mgr)
 
-	err = secret.SetupWithManager(mgr, 5)
+	err = secret.SetupWithManager(mgrCtx, mgr, 5)
 	Expect(err).NotTo(HaveOccurred())
 
 	custodian := NewEtcdCustodian(mgr, controllersconfig.EtcdCustodianController{
@@ -141,9 +153,7 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).NotTo(HaveOccurred())
 
 	mgrStopped = startTestManager(mgrCtx, mgr)
-
-	close(done)
-}, 60)
+})
 
 var _ = AfterSuite(func() {
 	mgrCancel()

@@ -13,7 +13,7 @@ import (
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
 	"github.com/gardener/gardener/pkg/utils/test/matchers"
 	"github.com/go-logr/logr"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -150,7 +150,7 @@ var _ = Describe("Etcd", func() {
 })
 
 func deleteMemberDir(ctx context.Context, cl client.Client, logger logr.Logger, etcd *v1alpha1.Etcd, podName string) {
-	ExpectWithOffset(1, deleteDir(kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
+	ExpectWithOffset(1, deleteDir(ctx, kubeconfigPath, namespace, podName, "backup-restore", "/var/etcd/data/new.etcd/member")).To(Succeed())
 	checkUnreadySts(ctx, cl, logger, etcd)
 }
 

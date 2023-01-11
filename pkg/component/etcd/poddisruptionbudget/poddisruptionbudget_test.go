@@ -20,7 +20,7 @@ import (
 	"github.com/Masterminds/semver"
 	. "github.com/gardener/etcd-druid/pkg/component/etcd/poddisruptionbudget"
 	. "github.com/gardener/gardener/pkg/utils/test/matchers"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
@@ -161,7 +161,7 @@ var _ = Describe("PodDisruptionBudget", func() {
 				It("should create the PDB successfully", func() {
 					etcd.Spec.Replicas = 5
 					etcd.Status = druidv1alpha1.EtcdStatus{
-						ClusterSize: pointer.Int32Ptr(4),
+						ClusterSize: pointer.Int32(4),
 					}
 					values = GenerateValues(etcd)
 					pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
@@ -183,7 +183,7 @@ var _ = Describe("PodDisruptionBudget", func() {
 
 				etcd.Spec.Replicas = 5
 				etcd.Status = druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(4),
+					ClusterSize: pointer.Int32(4),
 				}
 				values = GenerateValues(etcd)
 				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_20_0)
@@ -234,7 +234,7 @@ var _ = Describe("PodDisruptionBudget", func() {
 
 				etcd.Spec.Replicas = 5
 				etcd.Status = druidv1alpha1.EtcdStatus{
-					ClusterSize: pointer.Int32Ptr(4),
+					ClusterSize: pointer.Int32(4),
 				}
 				values = GenerateValues(etcd)
 				pdbDeployer = New(cl, namespace, &values, *k8sVersion_1_25_0)
@@ -337,8 +337,8 @@ func checkPDBMetadata(meta *metav1.ObjectMeta, values *Values) {
 		Kind:               "Etcd",
 		Name:               values.EtcdName,
 		UID:                values.EtcdUID,
-		Controller:         pointer.BoolPtr(true),
-		BlockOwnerDeletion: pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: pointer.Bool(true),
 	})))
 	Expect(meta.Labels).To(Equal(pdbLabels(values)))
 }

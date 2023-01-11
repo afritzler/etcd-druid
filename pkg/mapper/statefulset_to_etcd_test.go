@@ -18,21 +18,21 @@ import (
 	"context"
 	"fmt"
 
+	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
+	"github.com/gardener/etcd-druid/pkg/common"
+	. "github.com/gardener/etcd-druid/pkg/mapper"
+	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
+	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
-	"github.com/gardener/etcd-druid/pkg/common"
-	. "github.com/gardener/etcd-druid/pkg/mapper"
-	mockclient "github.com/gardener/etcd-druid/pkg/mock/controller-runtime/client"
 )
 
 var _ = Describe("Druid Mapper", func() {
@@ -59,7 +59,7 @@ var _ = Describe("Druid Mapper", func() {
 				Namespace: namespace,
 			},
 		}
-		mapper = StatefulSetToEtcd(ctx, c)
+		mapper = StatefulSetToEtcd(c)
 	})
 
 	AfterEach(func() {
@@ -84,7 +84,7 @@ var _ = Describe("Druid Mapper", func() {
 
 			kutil.SetMetaDataAnnotation(statefulset, common.GardenerOwnedBy, key)
 
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logr.FromContextOrDiscard(ctx), nil, statefulset)
 
 			Expect(etcds).To(ConsistOf(
 				reconcile.Request{
@@ -101,19 +101,19 @@ var _ = Describe("Druid Mapper", func() {
 
 			kutil.SetMetaDataAnnotation(statefulset, common.GardenerOwnedBy, key)
 
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logr.FromContextOrDiscard(ctx), nil, statefulset)
 
 			Expect(etcds).To(BeEmpty())
 		})
 
 		It("should not find related Etcd object because owner annotation is not present", func() {
-			etcds := mapper.Map(statefulset)
+			etcds := mapper.Map(ctx, logr.FromContextOrDiscard(ctx), nil, statefulset)
 
 			Expect(etcds).To(BeEmpty())
 		})
 
 		It("should not find related Etcd object because map is called with wrong object", func() {
-			etcds := mapper.Map(nil)
+			etcds := mapper.Map(ctx, logr.FromContextOrDiscard(ctx), nil, nil)
 
 			Expect(etcds).To(BeEmpty())
 		})

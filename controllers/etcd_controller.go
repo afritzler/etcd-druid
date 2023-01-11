@@ -17,6 +17,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+	"embed"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -33,12 +34,11 @@ import (
 	componentsts "github.com/gardener/etcd-druid/pkg/component/etcd/statefulset"
 	druidpredicates "github.com/gardener/etcd-druid/pkg/predicate"
 	"github.com/gardener/etcd-druid/pkg/utils"
-
-	extensionspredicate "github.com/gardener/gardener/extensions/pkg/predicate"
 	v1beta1constants "github.com/gardener/gardener/pkg/apis/core/v1beta1/constants"
 	"github.com/gardener/gardener/pkg/chartrenderer"
 	"github.com/gardener/gardener/pkg/client/kubernetes"
 	"github.com/gardener/gardener/pkg/controllerutils"
+	gardenerpredicates "github.com/gardener/gardener/pkg/controllerutils/predicate"
 	gardenercomponent "github.com/gardener/gardener/pkg/operation/botanist/component"
 	"github.com/gardener/gardener/pkg/utils/imagevector"
 	kutil "github.com/gardener/gardener/pkg/utils/kubernetes"
@@ -55,7 +55,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -66,6 +65,10 @@ import (
 )
 
 var (
+	//go:embed charts/etcd
+	chartEtcd     embed.FS
+	chartPathEtcd = filepath.Join("charts", "etcd")
+
 	etcdGVK = druidv1alpha1.GroupVersion.WithKind("Etcd")
 
 	// UncachedObjectList is a list of objects which should not be cached.
@@ -219,7 +222,7 @@ func buildPredicate(ignoreOperationAnnotation bool) predicate.Predicate {
 	return predicate.Or(
 		druidpredicates.HasOperationAnnotation(),
 		druidpredicates.LastOperationNotSuccessful(),
-		extensionspredicate.IsDeleting(),
+		gardenerpredicates.IsDeleting(),
 	)
 }
 
@@ -278,7 +281,7 @@ func (r *EtcdReconciler) reconcile(ctx context.Context, etcd *druidv1alpha1.Etcd
 	// Add Finalizers to Etcd
 	if finalizers := sets.NewString(etcd.Finalizers...); !finalizers.Has(FinalizerName) {
 		logger.Info("Adding finalizer")
-		if err := controllerutils.PatchAddFinalizers(ctx, r.Client, etcd, FinalizerName); err != nil {
+		if err := controllerutils.AddFinalizers(ctx, r.Client, etcd, FinalizerName); err != nil {
 			if err := r.updateEtcdErrorStatus(ctx, etcd, reconcileResult{err: err}); err != nil {
 				return ctrl.Result{
 					Requeue: true,
@@ -378,7 +381,7 @@ func (r *EtcdReconciler) delete(ctx context.Context, etcd *druidv1alpha1.Etcd) (
 
 	if sets.NewString(etcd.Finalizers...).Has(FinalizerName) {
 		logger.Info("Removing finalizer")
-		if err := controllerutils.PatchRemoveFinalizers(ctx, r.Client, etcd, FinalizerName); client.IgnoreNotFound(err) != nil {
+		if err := controllerutils.RemoveFinalizers(ctx, r.Client, etcd, FinalizerName); client.IgnoreNotFound(err) != nil {
 			return ctrl.Result{
 				Requeue: true,
 			}, err
@@ -401,11 +404,12 @@ func (r *EtcdReconciler) reconcileServiceAccount(ctx context.Context, logger log
 	var err error
 	decoded := &corev1.ServiceAccount{}
 	serviceAccountPath := getChartPathForServiceAccount()
-	chartPath := getChartPath()
-	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+
+	renderedChart, err := r.chartApplier.RenderEmbeddedFS(chartEtcd, chartPathEtcd, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}
+
 	if content, ok := renderedChart.Files()[serviceAccountPath]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
 		if err = decoder.Decode(&decoded); err != nil {
@@ -454,11 +458,12 @@ func (r *EtcdReconciler) reconcileRole(ctx context.Context, logger logr.Logger, 
 	var err error
 	decoded := &rbac.Role{}
 	rolePath := getChartPathForRole()
-	chartPath := getChartPath()
-	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+
+	renderedChart, err := r.chartApplier.RenderEmbeddedFS(chartEtcd, chartPathEtcd, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}
+
 	if content, ok := renderedChart.Files()[rolePath]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
 		if err = decoder.Decode(&decoded); err != nil {
@@ -495,11 +500,11 @@ func (r *EtcdReconciler) reconcileRoleBinding(ctx context.Context, logger logr.L
 	var err error
 	decoded := &rbac.RoleBinding{}
 	roleBindingPath := getChartPathForRoleBinding()
-	chartPath := getChartPath()
-	renderedChart, err := r.chartApplier.Render(chartPath, etcd.Name, etcd.Namespace, values)
+	renderedChart, err := r.chartApplier.RenderEmbeddedFS(chartEtcd, chartPathEtcd, etcd.Name, etcd.Namespace, values)
 	if err != nil {
 		return err
 	}
+
 	if content, ok := renderedChart.Files()[roleBindingPath]; ok {
 		decoder := yaml.NewYAMLOrJSONDecoder(bytes.NewReader([]byte(content)), 1024)
 		if err = decoder.Decode(&decoded); err != nil {
@@ -628,7 +633,7 @@ func (r *EtcdReconciler) reconcileEtcd(ctx context.Context, logger logr.Logger, 
 	// Create an OpWaiter because after the deployment we want to wait until the StatefulSet is ready.
 	var (
 		stsDeployer  = componentsts.New(r.Client, logger, statefulSetValues)
-		deployWaiter = gardenercomponent.OpWaiter(stsDeployer)
+		deployWaiter = gardenercomponent.OpWait(stsDeployer)
 	)
 
 	if err = deployWaiter.Deploy(ctx); err != nil {
@@ -732,7 +737,7 @@ func getEtcdImages(im imagevector.ImageVector, etcd *druidv1alpha1.Etcd) (string
 
 func bootstrapReset(etcd *druidv1alpha1.Etcd) {
 	etcd.Status.Members = nil
-	etcd.Status.ClusterSize = pointer.Int32Ptr(etcd.Spec.Replicas)
+	etcd.Status.ClusterSize = pointer.Int32(etcd.Spec.Replicas)
 }
 
 func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
@@ -741,39 +746,39 @@ func clusterInBootstrap(etcd *druidv1alpha1.Etcd) bool {
 }
 
 func (r *EtcdReconciler) updateEtcdErrorStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
-	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
-		lastErrStr := fmt.Sprintf("%v", result.err)
-		etcd.Status.LastError = &lastErrStr
-		etcd.Status.ObservedGeneration = &etcd.Generation
-		if result.sts != nil {
-			if clusterInBootstrap(etcd) {
-				// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
-				bootstrapReset(etcd)
-			}
-			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
-			etcd.Status.Ready = &ready
-			etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
-		}
-		return nil
-	})
-}
-
-func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
-	return controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
+	etcdBase := etcd.DeepCopy()
+	lastErrStr := fmt.Sprintf("%v", result.err)
+	etcd.Status.LastError = &lastErrStr
+	etcd.Status.ObservedGeneration = &etcd.Generation
+	if result.sts != nil {
 		if clusterInBootstrap(etcd) {
 			// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
 			bootstrapReset(etcd)
 		}
-		if result.sts != nil {
-			ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
-			etcd.Status.Ready = &ready
-			etcd.Status.Replicas = pointer.Int32PtrDerefOr(result.sts.Spec.Replicas, 0)
-		}
-		etcd.Status.ServiceName = result.svcName
-		etcd.Status.LastError = nil
-		etcd.Status.ObservedGeneration = &etcd.Generation
-		return nil
-	})
+		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
+		etcd.Status.Ready = &ready
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
+	}
+
+	return r.Client.Patch(ctx, etcd, client.MergeFrom(etcdBase))
+}
+
+func (r *EtcdReconciler) updateEtcdStatus(ctx context.Context, etcd *druidv1alpha1.Etcd, result reconcileResult) error {
+	etcdBase := etcd.DeepCopy()
+	if clusterInBootstrap(etcd) {
+		// Reset members in bootstrap phase to ensure dependent conditions can be calculated correctly.
+		bootstrapReset(etcd)
+	}
+	if result.sts != nil {
+		ready := utils.CheckStatefulSet(etcd.Spec.Replicas, result.sts) == nil
+		etcd.Status.Ready = &ready
+		etcd.Status.Replicas = pointer.Int32Deref(result.sts.Spec.Replicas, 0)
+	}
+	etcd.Status.ServiceName = result.svcName
+	etcd.Status.LastError = nil
+	etcd.Status.ObservedGeneration = &etcd.Generation
+
+	return r.Client.Patch(ctx, etcd, client.MergeFrom(etcdBase))
 }
 
 func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger logr.Logger, etcd *druidv1alpha1.Etcd) error {
@@ -787,10 +792,9 @@ func (r *EtcdReconciler) removeOperationAnnotation(ctx context.Context, logger l
 }
 
 func (r *EtcdReconciler) updateEtcdStatusAsNotReady(ctx context.Context, etcd *druidv1alpha1.Etcd) (*druidv1alpha1.Etcd, error) {
-	err := controllerutils.TryUpdateStatus(ctx, retry.DefaultBackoff, r.Client, etcd, func() error {
-		etcd.Status.Ready = nil
-		etcd.Status.ReadyReplicas = 0
-		return nil
-	})
-	return etcd, err
+	etcdBase := etcd.DeepCopy()
+	etcd.Status.Ready = nil
+	etcd.Status.ReadyReplicas = 0
+
+	return etcd, r.Client.Patch(ctx, etcd, client.MergeFrom(etcdBase))
 }

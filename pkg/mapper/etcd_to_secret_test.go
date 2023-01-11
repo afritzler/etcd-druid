@@ -17,9 +17,10 @@ package mapper_test
 import (
 	druidv1alpha1 "github.com/gardener/etcd-druid/api/v1alpha1"
 	. "github.com/gardener/etcd-druid/pkg/mapper"
-
+	"github.com/gardener/etcd-druid/pkg/testing"
 	"github.com/gardener/gardener/pkg/controllerutils/mapper"
-	. "github.com/onsi/ginkgo"
+	"github.com/go-logr/logr"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +29,8 @@ import (
 )
 
 var _ = Describe("EtcdToSecret", func() {
+	ctx := testing.SetupContext()
+
 	var (
 		m    mapper.Mapper
 		etcd *druidv1alpha1.Etcd
@@ -45,7 +48,7 @@ var _ = Describe("EtcdToSecret", func() {
 	})
 
 	It("should return empty list because Etcd is not referencing secrets", func() {
-		Expect(m.Map(etcd)).To(BeEmpty())
+		Expect(m.Map(ctx, logr.FromContextOrDiscard(ctx), nil, etcd)).To(BeEmpty())
 	})
 
 	It("should return four requests because Etcd is referencing secrets", func() {
@@ -56,6 +59,7 @@ var _ = Describe("EtcdToSecret", func() {
 			secretPeerCATLS       = "peer-url-ca-etcd"
 			secretPeerServerTLS   = "peer-url-etcd-server-tls"
 			secretBackupStore     = "backup-store"
+			log                   = logr.FromContextOrDiscard(ctx)
 		)
 
 		etcd.Spec.Etcd.ClientUrlTLS = &druidv1alpha1.TLSConfig{
@@ -77,7 +81,7 @@ var _ = Describe("EtcdToSecret", func() {
 			SecretRef: &corev1.SecretReference{Name: secretBackupStore},
 		}
 
-		Expect(m.Map(etcd)).To(ConsistOf(
+		Expect(m.Map(ctx, log, nil, etcd)).To(ConsistOf(
 			reconcile.Request{NamespacedName: types.NamespacedName{
 				Name:      secretClientCATLS,
 				Namespace: namespace,
